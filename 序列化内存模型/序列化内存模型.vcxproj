@@ -153,6 +153,9 @@
   <ItemGroup>
     <ClCompile Include="序列化内存模型.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="序列化内存模型.hpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
