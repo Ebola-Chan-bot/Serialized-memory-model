@@ -1,4 +1,4 @@
-#include<functional>
+import std;
 namespace 序列化内存模型
 {
 	//你可以把内存句柄本身作为值保存在容器中。重新载入后该句柄仍然有效，但指向的真实内存地址可能已经改变。
@@ -23,7 +23,7 @@ namespace 序列化内存模型
 				}
 			}
 			else
-				*分配头指针 = { 0,0 };
+				*分配头指针 = { 0,0,nullptr };
 		}
 		//返回的引用只能临时使用。对管理器的任何操作都可能导致引用失效。
 		template<typename T>
@@ -49,48 +49,119 @@ namespace 序列化内存模型
 		内存句柄<T>allocate(size_type 个数 = 1)
 		{
 			size_type A;
-			分配块* 分配块指针 = reinterpret_cast<分配块*>(分配头指针 + 1);
+			分配块*const 分配块头指针 = reinterpret_cast<分配块*>(分配头指针 + 1);
 			for (A = 0; A < 分配头指针->分配块个数; ++A)
-			{
-				if (分配块指针->大小)
-					分配块指针++;
-				else
+				if (!分配块头指针[A].大小)
 					break;
-			}
 			if (A == 分配头指针->分配块个数)
 			{
-				const size_type 至少块个数 = (A + 1) * 2;
-				if (至少块个数 > 分配头指针->分配块个数)
+				size_type 新偏移;
+				const size_type 至少块个数 = A + 1;
+				if (至少块个数 > 分配头指针->分配块空间)
 				{
-					const size_type 扩张空间 = (至少块个数 - 分配头指针->分配块个数) * sizeof(分配块);
-					const size_type 数据段原起点 = sizeof(分配头) + sizeof(分配块) * 分配头指针->分配块空间;
-					const size_type 数据段新起点 = 数据段原起点 + 扩张空间;
+					//块空间不足，需要2倍扩张
+					分配头指针->分配块空间 = 至少块个数 * 2;
+					新偏移 = sizeof(分配头) + sizeof(分配块) * 分配头指针->分配块空间;
+					size_type 至少空间 = 新偏移;
+					for (A = 0; A < 分配头指针->分配块个数; ++A)
+						至少空间 += 分配块头指针[A].大小;
+					if (至少空间 > 空间)
+					{
+						空间 = 至少空间 * 2;
+						分配器(空间, 头指针);
+					}
+					std::queue<char>缓冲区;
+					char* 写出头 = 头指针 + 新偏移;
+					分配块* 分配块指针 = to_address(分配头指针->第一块);
+					if (分配块指针->偏移 < 新偏移)
+					{
+						for (; 分配块指针; 分配块指针 = to_address(分配块指针->下一块))
+						{
+							if (缓冲区.size() + 分配块指针->大小 + 写出头 > 头指针 + 分配块指针->偏移)
+							{
+								const char* const 块头指针 = 头指针 + 分配块指针->偏移;
+								缓冲区.push_range(std::span<const char>(块头指针, 分配块指针->大小));
+								if (块头指针 > 写出头)
+									for (size_type 字节数 = std::min(块头指针 - 写出头, 缓冲区.size()); 字节数; --字节数)
+									{
+										*写出头++ = 缓冲区.front();
+										缓冲区.pop();
+									}
+							}
+							else
+							{
+								while (缓冲区.size())
+								{
+									*写出头++ = 缓冲区.front();
+									缓冲区.pop();
+								};
+								写出头 = std::copy_n(头指针 + 分配块指针->偏移, 分配块指针->大小, 写出头);
+							}
+							分配块指针->偏移 = 新偏移;
+							新偏移 += 分配块指针->大小;
+						}
+						while (缓冲区.size())
+						{
+							*写出头++ = 缓冲区.front();
+							缓冲区.pop();
+						};
+						分配头指针->最后块=
+					}
+					else
+					{
+						for (; 分配块指针; 分配块指针 = to_address(分配块指针->下一块))
+						{
+							if (写出头 + 分配块指针->大小 > 头指针 + 分配块指针->偏移)
+							{
+								const char* const 块头指针 = 头指针 + 分配块指针->偏移;
+								if (块头指针 > 写出头)
+									for (size_type 字节数 = std::min(块头指针 - 写出头, 写出头 - 头指针); 字节数; --字节数)
+									{
+										*写出头++ = *(写出头 - 字节数);
+									}
+								写出头 = std::copy_n(头指针 + 分配块指针->偏移, 分配块指针->大小, 写出头);
+							}
+							else
+							{
+								写出头 = std::copy_n(头指针 + 分配块指针->偏移, 分配块指针->大小, 写出头);
+							}
+							分配块指针->偏移 = 新偏移;
+							新偏移 += 分配块指针->大小;
+						}
+					}
+				}
+				else
+				{
 
 				}
 			}
 		}
 		//释放后的句柄不再可用。
 		template<typename T>
-		void deallocate(内存句柄<T>句柄)const;
+		void deallocate(内存句柄<T>句柄);
 		//重分配不改变句柄本身的值，但可能会改变句柄指向的真实内存地址。
 		template<typename T>
 		void reallocate(内存句柄<T>句柄, size_type 个数);
 	protected:
-		struct 分配头
+		struct 分配块
+		{
+			内存句柄<分配块> 上一块;
+			size_type 偏移;
+			size_type 大小;
+			内存句柄<分配块> 下一块;
+		};
+		struct 文件头
 		{
 			size_type 分配块空间;
 			size_type 分配块个数;
+			内存句柄<分配块>第一块;
+			内存句柄<分配块>最后块;
 		};
 		union
 		{
-			char* 头指针;
-			分配头* 分配头指针;
+			char* 字节头指针;
+			文件头* 文件头指针;
 		};
-		size_type 空间;
-		struct 分配块
-		{
-			size_type 偏移;
-			size_type 大小;
-		};
+		size_type 文件空间;
 	};
 }
