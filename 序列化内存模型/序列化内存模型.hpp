@@ -3,7 +3,10 @@ namespace 序列化内存模型
 {
 	//你可以把内存句柄本身作为值保存在容器中。重新载入后该句柄仍然有效，但指向的真实内存地址可能已经改变。
 	template<typename T>
-	using 内存句柄 = T*;
+	struct 句柄
+	{
+
+	};
 	using size_type = size_t;
 	struct 管理器
 	{
@@ -11,19 +14,19 @@ namespace 序列化内存模型
 		/*构造管理器需要用户提供一个底层字节序列特定的分配器。分配器可能被多次调用，应当保证不改变底层字节序列。分配器应当分配不少于输入空间参数值的字节数，并将实际分配的字节数写入空间参数，分配的内存指针写入头指针参数。最后返回一个bool，指示分配的空间是否曾经被管理器写入过：若true，则管理器将可以读取以前保存的内容；否则将覆盖创建新的内容。
 		管理器将获得分配器的所有权，管理器删除时分配器也删除。用户应当在分配器的删除过程中负责释放分配的资源。
 		*/
-		管理器(std::function<bool (size_type& 空间,char*&头指针)>&&分配器) :分配器(std::move(分配器)),空间(sizeof(分配头))
+		管理器(std::function<bool (size_type& 空间,char*&头指针)>&&分配器) :分配器(std::move(分配器)),文件空间(sizeof(文件头))
 		{
-			if (分配器(空间, 头指针))
+			if (分配器(文件空间, 字节头指针))
 			{
-				const size_type 至少空间 = 分配头指针->分配块空间 * sizeof(分配块) + sizeof(分配头);
-				if (至少空间 > 空间)
+				const size_type 至少空间 = 文件头指针->分配块空间 * sizeof(分配块) + sizeof(文件头);
+				if (至少空间 > 文件空间)
 				{
-					空间 = 至少空间 * 2;
-					分配器(空间, 头指针);
+					文件空间 = 至少空间 * 2;
+					分配器(文件空间, 字节头指针);
 				}
 			}
 			else
-				*分配头指针 = { 0,0,nullptr };
+				*文件头指针 = { 0,0,static_cast<size_type>(-1),static_cast<size_type>(-1) };
 		}
 		//返回的引用只能临时使用。对管理器的任何操作都可能导致引用失效。
 		template<typename T>
@@ -35,12 +38,12 @@ namespace 序列化内存模型
 		template<typename T>
 		T* to_address(内存句柄<T>句柄)
 		{
-			const 分配块& 分配 = reinterpret_cast<分配块*>(分配头指针 + 1)[reinterpret_cast<size_type>(句柄)];
+			const 分配块& 分配 = reinterpret_cast<分配块*>(文件头指针 + 1)[reinterpret_cast<size_type>(句柄)];
 			const size_type 至少空间 = 分配.偏移 + 分配.大小;
-			if (至少空间 > 空间)
+			if (至少空间 > 文件空间)
 			{
-				空间 = 至少空间 * 2;
-				分配器(空间, 头指针);
+				文件空间 = 至少空间 * 2;
+				分配器(文件空间, 字节头指针);
 			}
 			return reinterpret_cast<T*>(头指针 + 分配.偏移);
 		}
@@ -145,17 +148,17 @@ namespace 序列化内存模型
 	protected:
 		struct 分配块
 		{
-			内存句柄<分配块> 上一块;
+			size_type 上一块;
 			size_type 偏移;
 			size_type 大小;
-			内存句柄<分配块> 下一块;
+			size_type 下一块;
 		};
 		struct 文件头
 		{
 			size_type 分配块空间;
 			size_type 分配块个数;
-			内存句柄<分配块>第一块;
-			内存句柄<分配块>最后块;
+			size_type 第一块;
+			size_type 最后块;
 		};
 		union
 		{
