@@ -3,11 +3,9 @@
 	<ItemDefinitionGroup>
 		<ClCompile>
 			<AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-			<SDLCheck>false</SDLCheck>
 		</ClCompile>
 		<ResourceCompile>
 			<AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-			<SDLCheck>false</SDLCheck>
 		</ResourceCompile>
 	</ItemDefinitionGroup>
 </Project>
