@@ -5,7 +5,6 @@
 		<version>1.0.0</version>
 		<description>
 			此工具把文件等序列化数据看作一段内存，在“内存”上执行分配、重分配、解分配等操作，自动维护分配表。用户只需要通过固定的句柄即可访问文件中的数据块，无需关注存放位置、序列分布等细节。
-			你可以根据实际情况选择使用C++模块导入或者包含C风格ABI的头文件。此外本库也支持.NET平台。
 		</description>
 		<authors>埃博拉酱</authors>
 		<projectUrl>https://github.com/Ebola-Chan-bot/Serialized-memory-model</projectUrl>
